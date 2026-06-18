@@ -15,7 +15,7 @@ export default function RecapView({ state }: RecapViewProps) {
   const [recapTab, setRecapTab] = useState<'harian' | 'mingguan' | 'bulanan' | 'semester'>('harian');
   
   // Shared filters
-  const [selectedClassId, setSelectedClassId] = useState('6'); // Class 6 has nice prefilled data
+  const [selectedClassId, setSelectedClassId] = useState('6A'); // Class 6A has nice prefilled data
   const [filterMonth, setFilterMonth] = useState(5); // June (0-indexed)
   const [filterYear, setFilterYear] = useState(2026);
   const [filterDay, setFilterDay] = useState('2026-06-17'); // Wednesday

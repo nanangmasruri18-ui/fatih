@@ -60,7 +60,7 @@ export default function LoginView({ state, onLoginSuccess }: LoginViewProps) {
           PRESENSI SDN 005 GELORA
         </h2>
         <p className="mt-1 text-center text-xs text-gray-500 font-bold uppercase tracking-wider">
-          NPSN: 10405436 • GELORA KECAMATAN TANAH ABANG
+          NPSN: 10405436 • GELORA KECAMATAN BAGAN SINEMBAH
         </p>
       </div>
 

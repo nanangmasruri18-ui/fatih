@@ -40,7 +40,7 @@ export default function App() {
   const [appState, setAppState] = useState<AppState>(getInitialState);
   const [activeView, setActiveView] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedClassId, setSelectedClassId] = useState('6');
+  const [selectedClassId, setSelectedClassId] = useState('6A');
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
