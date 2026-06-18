@@ -130,9 +130,9 @@ export default function RecapView({ state }: RecapViewProps) {
 
   // Total school class stats in current selections
   const selectedClass = state.classes.find(c => c.id === selectedClassId);
-  const waliKelasName = selectedClass ? 
-    (state.teachers.find(t => t.nip === selectedClass.waliKelasNip)?.nama || 'Belum diatur') 
-    : 'Belum diatur';
+  const waliKelasTeacher = selectedClass ? state.teachers.find(t => t.nip === selectedClass.waliKelasNip) : null;
+  const waliKelasName = waliKelasTeacher ? waliKelasTeacher.nama : 'Belum diatur';
+  const waliKelasNip = waliKelasTeacher ? waliKelasTeacher.nip : '';
 
   // Export to PDF function with proper layout matching tab orientation
   const exportToPDF = () => {
@@ -318,11 +318,11 @@ export default function RecapView({ state }: RecapViewProps) {
       doc.setFontSize(8.5);
       doc.setFont('Helvetica', 'normal');
       doc.text('Mengetahui,', pageWidth - 65, finalY);
-      doc.text('Kepala Sekolah SDN 005 Gelora', pageWidth - 65, finalY + 5);
+      doc.text(`Guru Kelas ${selectedClass?.nama || selectedClassId}`, pageWidth - 65, finalY + 5);
       doc.setFont('Helvetica', 'bold');
-      doc.text('MUHAMMAD AL FATIH, S.Pd.', pageWidth - 65, finalY + 24);
+      doc.text(waliKelasName, pageWidth - 65, finalY + 24);
       doc.setFont('Helvetica', 'normal');
-      doc.text('NIP. 197804152005011003', pageWidth - 65, finalY + 28);
+      doc.text(waliKelasNip ? `NIP. ${waliKelasNip}` : 'NIP. -', pageWidth - 65, finalY + 28);
     }
 
     doc.save(`SDN005_Rekap_${recapTab.toUpperCase()}_Kelas_${selectedClassId}_${Date.now()}.pdf`);
