@@ -208,3 +208,110 @@ export function exportAttendanceReport(
   const filename = `rekap_absensi_sdn005_kelas_${className}_bulan_${month}_${year}.xlsx`;
   XLSX.writeFile(workbook, filename);
 }
+
+/**
+ * Export customized semester attendance report Excel sheet
+ */
+export function exportSemesterAttendanceReport(
+  schoolName: string,
+  npsn: string,
+  semester: 'ganjil' | 'genap',
+  year: number,
+  className: string,
+  students: Student[],
+  attendance: Attendance[]
+) {
+  // Filter students for the class
+  const classStudents = students.filter(s => s.kelasId === className || className === 'Semua');
+
+  // Create document header structure
+  const rows: any[] = [];
+  rows.push(['REKAPITULASI ABSENSI SEMESTER SISWA']);
+  rows.push(['Nama Sekolah:', schoolName]);
+  rows.push(['NPSN:', npsn]);
+  rows.push(['Semester:', semester === 'ganjil' ? 'GANJIL (JULI - DESEMBER)' : 'GENAP (JANUARI - JUNI)']);
+  rows.push(['Tahun:', year]);
+  rows.push(['Kelas:', className === 'Semua' ? 'Semua Kelas' : `Kelas ${className}`]);
+  rows.push([]); // Empty spacing
+
+  // Table Headers
+  rows.push([
+    'No',
+    'NISN',
+    'Nama Siswa',
+    'L/P',
+    'Kelas',
+    'Hadir (H)',
+    'Sakit (S)',
+    'Izin (I)',
+    'Alpha (A)',
+    'Total Hari Sekolah',
+    'Persentase Kehadiran'
+  ]);
+
+  // Fill data
+  classStudents.forEach((student, index) => {
+    const studentAtt = attendance.filter(a => {
+      if (a.nisn !== student.nisn) return false;
+      const d = new Date(a.date);
+      if (d.getFullYear() !== year) return false;
+      const m = d.getMonth(); // 0-11
+      if (semester === 'ganjil') {
+        return m >= 6 && m <= 11; // July - Dec
+      } else {
+        return m >= 0 && m <= 5; // Jan - Jun
+      }
+    });
+
+    const hadir = studentAtt.filter(a => a.status === 'H').length;
+    const sakit = studentAtt.filter(a => a.status === 'S').length;
+    const izin = studentAtt.filter(a => a.status === 'I').length;
+    const alpha = studentAtt.filter(a => a.status === 'A').length;
+
+    const total = hadir + sakit + izin + alpha;
+    const rate = total > 0 ? `${Math.round((hadir / total) * 100)}%` : '100%';
+
+    rows.push([
+      index + 1,
+      student.nisn,
+      student.nama,
+      student.jenisKelamin,
+      `Kelas ${student.kelasId}`,
+      hadir,
+      sakit,
+      izin,
+      alpha,
+      total,
+      rate
+    ]);
+  });
+
+  // Create sheet
+  const worksheet = XLSX.utils.aoa_to_sheet(rows);
+
+  // Styling merges
+  worksheet['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } } // title merge
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekap Semester');
+
+  // Set column widths
+  worksheet['!cols'] = [
+    { wch: 5 },  // No
+    { wch: 15 }, // NISN
+    { wch: 25 }, // Nama Siswa
+    { wch: 8 },  // L/P
+    { wch: 12 }, // Kelas
+    { wch: 12 }, // H
+    { wch: 12 }, // S
+    { wch: 12 }, // I
+    { wch: 12 }, // A
+    { wch: 18 }, // Total
+    { wch: 20 }  // Rate
+  ];
+
+  const filename = `rekap_semester_sdn005_kelas_${className}_semester_${semester}_${year}.xlsx`;
+  XLSX.writeFile(workbook, filename);
+}

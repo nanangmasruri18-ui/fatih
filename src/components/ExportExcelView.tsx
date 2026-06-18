@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppState } from '../types';
-import { exportAttendanceReport } from '../utils/excelUtils';
+import { exportAttendanceReport, exportSemesterAttendanceReport } from '../utils/excelUtils';
 import { FileSpreadsheet, Download, Info, CheckCircle, School } from 'lucide-react';
 
 interface ExportExcelViewProps {
@@ -13,30 +13,48 @@ const INDONESIAN_MONTHS = [
 ];
 
 export default function ExportExcelView({ state }: ExportExcelViewProps) {
+  const [exportType, setExportType] = useState<'bulanan' | 'semester'>('bulanan');
   const [selectedClass, setSelectedClass] = useState('Semua');
   const [exportMonth, setExportMonth] = useState(5); // June is 5 (0-indexed)
   const [exportYear, setExportYear] = useState(2026);
+  const [exportSemester, setExportSemester] = useState<'ganjil' | 'genap'>('genap');
   const [downloadsLogged, setDownloadsLogged] = useState<string[]>([]);
 
   const handleExport = () => {
     try {
       const schoolName = 'SDN 005 Gelora';
       const npsn = '10405436';
-
-      exportAttendanceReport(
-        schoolName,
-        npsn,
-        exportMonth + 1, // Convert back to 1-12 range
-        exportYear,
-        selectedClass,
-        state.students,
-        state.attendance
-      );
-
-      // Log successful generation
       const ts = new Date().toLocaleTimeString('id-ID');
-      const label = `Rekap Kelas ${selectedClass}, Bulan ${INDONESIAN_MONTHS[exportMonth]} ${exportYear} (${ts})`;
-      setDownloadsLogged(prev => [label, ...prev]);
+
+      if (exportType === 'bulanan') {
+        exportAttendanceReport(
+          schoolName,
+          npsn,
+          exportMonth + 1, // Convert back to 1-12 range
+          exportYear,
+          selectedClass,
+          state.students,
+          state.attendance
+        );
+
+        // Log successful generation
+        const label = `Rekap Bulanan - Kelas ${selectedClass}, Bulan ${INDONESIAN_MONTHS[exportMonth]} ${exportYear} (${ts})`;
+        setDownloadsLogged(prev => [label, ...prev]);
+      } else {
+        exportSemesterAttendanceReport(
+          schoolName,
+          npsn,
+          exportSemester,
+          exportYear,
+          selectedClass,
+          state.students,
+          state.attendance
+        );
+
+        // Log successful generation
+        const label = `Rekap Semester - Kelas ${selectedClass}, Semester ${exportSemester === 'ganjil' ? 'GANJIL' : 'GENAP'} ${exportYear} (${ts})`;
+        setDownloadsLogged(prev => [label, ...prev]);
+      }
 
     } catch (err) {
       console.error(err);
@@ -49,7 +67,7 @@ export default function ExportExcelView({ state }: ExportExcelViewProps) {
       {/* Header */}
       <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-xs" id="export-excel-hdr">
         <h2 className="text-xl font-bold text-gray-800 tracking-tight">Unduh Laporan Format Excel (.xlsx)</h2>
-        <p className="text-xs text-gray-400">Ekspor laporan rekapitulasi presensi bulanan siswa SDN 005 Gelora ke format spreadsheet Microsoft Excel.</p>
+        <p className="text-xs text-gray-400">Ekspor laporan rekapitulasi presensi bulanan atau semester siswa SDN 005 Gelora ke format spreadsheet Microsoft Excel.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -59,6 +77,30 @@ export default function ExportExcelView({ state }: ExportExcelViewProps) {
             <School className="w-4 h-4 text-blue-600" />
             Parameter Laporan Sekolah
           </h3>
+
+          {/* Export Type Toggle */}
+          <div className="flex bg-gray-100 p-1 rounded-lg gap-1 text-xs font-bold">
+            <button
+              onClick={() => setExportType('bulanan')}
+              className={`flex-1 py-2 rounded-md transition-all text-center ${
+                exportType === 'bulanan'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              Laporan Bulanan
+            </button>
+            <button
+              onClick={() => setExportType('semester')}
+              className={`flex-1 py-2 rounded-md transition-all text-center ${
+                exportType === 'semester'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              Laporan Semester
+            </button>
+          </div>
 
           <div className="text-xs font-semibold text-gray-600 space-y-4">
             <div>
@@ -77,33 +119,62 @@ export default function ExportExcelView({ state }: ExportExcelViewProps) {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-gray-500 mb-1 font-semibold">Pilih Bulan Rekap</label>
-                <select
-                  value={exportMonth}
-                  onChange={e => setExportMonth(Number(e.target.value))}
-                  className="w-full bg-white border border-gray-200 rounded-lg p-2.5 outline-none focus:border-blue-500 text-xs font-bold text-gray-700"
-                >
-                  {INDONESIAN_MONTHS.map((m, idx) => (
-                    <option key={m} value={idx}>{m}</option>
-                  ))}
-                </select>
-              </div>
+            {exportType === 'bulanan' ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-500 mb-1 font-semibold">Pilih Bulan Rekap</label>
+                  <select
+                    value={exportMonth}
+                    onChange={e => setExportMonth(Number(e.target.value))}
+                    className="w-full bg-white border border-gray-200 rounded-lg p-2.5 outline-none focus:border-blue-500 text-xs font-bold text-gray-700"
+                  >
+                    {INDONESIAN_MONTHS.map((m, idx) => (
+                      <option key={m} value={idx}>{m}</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-gray-500 mb-1 font-semibold">Pilih Tahun</label>
-                <select
-                  value={exportYear}
-                  onChange={e => setExportYear(Number(e.target.value))}
-                  className="w-full bg-white border border-gray-200 rounded-lg p-2.5 outline-none focus:border-blue-500 text-xs font-bold text-gray-700"
-                >
-                  <option value={2026}>2026</option>
-                  <option value={2027}>2027</option>
-                  <option value={2028}>2028</option>
-                </select>
+                <div>
+                  <label className="block text-gray-500 mb-1 font-semibold">Pilih Tahun</label>
+                  <select
+                    value={exportYear}
+                    onChange={e => setExportYear(Number(e.target.value))}
+                    className="w-full bg-white border border-gray-200 rounded-lg p-2.5 outline-none focus:border-blue-500 text-xs font-bold text-gray-700"
+                  >
+                    <option value={2026}>2026</option>
+                    <option value={2027}>2027</option>
+                    <option value={2028}>2028</option>
+                  </select>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-500 mb-1 font-semibold">Pilih Semester</label>
+                  <select
+                    value={exportSemester}
+                    onChange={e => setExportSemester(e.target.value as 'ganjil' | 'genap')}
+                    className="w-full bg-white border border-gray-200 rounded-lg p-2.5 outline-none focus:border-blue-500 text-xs font-bold text-gray-700"
+                  >
+                    <option value="ganjil">Ganjil (Juli - Desember)</option>
+                    <option value="genap">Genap (Januari - Juni)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-500 mb-1 font-semibold">Pilih Tahun Akademik</label>
+                  <select
+                    value={exportYear}
+                    onChange={e => setExportYear(Number(e.target.value))}
+                    className="w-full bg-white border border-gray-200 rounded-lg p-2.5 outline-none focus:border-blue-500 text-xs font-bold text-gray-700"
+                  >
+                    <option value={2026}>2026</option>
+                    <option value={2027}>2027</option>
+                    <option value={2028}>2028</option>
+                  </select>
+                </div>
+              </div>
+            )}
 
             <div className="bg-blue-50 text-blue-800 p-4 rounded-lg flex gap-3 text-xs leading-relaxed border border-blue-100 font-medium font-sans">
               <Info className="h-4 w-4 shrink-0 text-blue-600 animate-pulse" />
@@ -112,14 +183,18 @@ export default function ExportExcelView({ state }: ExportExcelViewProps) {
                 <p className="mt-0.5 text-blue-700 font-semibold">
                   Nama: <strong>SDN 005 Gelora</strong><br />
                   NPSN: <strong>10405436</strong><br />
-                  Bulan: <strong>{INDONESIAN_MONTHS[exportMonth]} {exportYear}</strong>
+                  {exportType === 'bulanan' ? (
+                    <>Bulan: <strong>{INDONESIAN_MONTHS[exportMonth]} {exportYear}</strong></>
+                  ) : (
+                    <>Semester: <strong>{exportSemester === 'ganjil' ? 'GANJIL (Juli - Desember)' : 'GENAP (Januari - Juni)'}</strong>, Tahun: <strong>{exportYear}</strong></>
+                  )}
                 </p>
               </div>
             </div>
 
             <button
               onClick={handleExport}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center gap-2 font-bold transition-all shadow-xs"
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center gap-2 font-bold transition-all shadow-xs cursor-pointer"
             >
               <Download className="w-4.5 h-4.5" />
               Unduh File Excel Sekarang
@@ -131,7 +206,7 @@ export default function ExportExcelView({ state }: ExportExcelViewProps) {
         <div className="lg:col-span-7 bg-white p-6 rounded-xl border border-gray-100 shadow-xs flex flex-col justify-between">
           <div className="space-y-3">
             <h3 className="font-bold text-gray-800 text-sm">Riwayat Aktivitas Ekspor</h3>
-            <p className="text-xs text-gray-400">Daftar laporan rekapitulasi bulanan yang telah berhasil diproses and diunduh pada sesi ini.</p>
+            <p className="text-xs text-gray-400">Daftar laporan rekapitulasi bulanan atau semester yang telah berhasil diproses dan diunduh pada sesi ini.</p>
 
             {downloadsLogged.length === 0 ? (
               <div className="bg-gray-50/50 p-8 rounded-xl border border-gray-150 text-center text-gray-400 text-xs py-12" id="export-list-empty">

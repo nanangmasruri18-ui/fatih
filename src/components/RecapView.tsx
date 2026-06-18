@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { AppState, Student, Attendance } from '../types';
-import { Calendar, Filter, Users, School, BookOpen, Clock, Activity, FileText } from 'lucide-react';
+import { Calendar, Filter, Users, School, BookOpen, Clock, Activity, FileText, Download, Printer } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface RecapViewProps {
   state: AppState;
@@ -43,6 +45,36 @@ export default function RecapView({ state }: RecapViewProps) {
   };
 
   const weeklyDates = getWeeklyDates(filterDay);
+
+  // Helper to fetch all days of a month
+  const getDaysInMonth = (month: number, year: number) => {
+    const date = new Date(year, month, 1);
+    const days: string[] = [];
+    while (date.getMonth() === month) {
+      const yStr = date.getFullYear();
+      const mStr = String(date.getMonth() + 1).padStart(2, '0');
+      const dStr = String(date.getDate()).padStart(2, '0');
+      days.push(`${yStr}-${mStr}-${dStr}`);
+      date.setDate(date.getDate() + 1);
+    }
+    return days;
+  };
+
+  const monthDates = getDaysInMonth(filterMonth, filterYear);
+
+  // Helper to verify if a date is a Sunday or high/national holiday
+  const isHoliday = (dateStr: string) => {
+    const d = new Date(dateStr);
+    if (d.getDay() === 0) return true; // Minggu is holiday
+    return state.holidays.some(h => h.date === dateStr);
+  };
+
+  const getHolidayName = (dateStr: string) => {
+    const d = new Date(dateStr);
+    if (d.getDay() === 0) return 'Hari Minggu';
+    const h = state.holidays.find(h => h.date === dateStr);
+    return h ? h.nama : '';
+  };
 
   // Filter students
   const activeStudents = state.students.filter(s => s.kelasId === selectedClassId && s.statusAktif);
@@ -102,49 +134,253 @@ export default function RecapView({ state }: RecapViewProps) {
     (state.teachers.find(t => t.nip === selectedClass.waliKelasNip)?.nama || 'Belum diatur') 
     : 'Belum diatur';
 
+  // Export to PDF function with proper layout matching tab orientation
+  const exportToPDF = () => {
+    const isLandscape = recapTab === 'bulanan' || recapTab === 'mingguan';
+    const doc = new jsPDF({
+      orientation: isLandscape ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // 1. School Header
+    doc.setFillColor(30, 41, 59); // Premium Slate header
+    doc.rect(0, 0, pageWidth, 28, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('SDN 005 GELORA KECAMATAN BAGAN SINEMBAH', 15, 11);
+    
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(200, 220, 255);
+    doc.text('NPSN: 10405436  •  Laporan Presensi Bulanan Resmi Sekolah  •  Kabupaten Rokan Hilir', 15, 17);
+    
+    // Aesthetic Blue Line border
+    doc.setFillColor(59, 130, 246);
+    doc.rect(0, 24, pageWidth, 4, 'F');
+
+    // 2. Report Subheading
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(11);
+    
+    let title = '';
+    let metaLeft = `Kelas: ${selectedClass?.nama || selectedClassId}`;
+    let metaRight = `Wali Kelas: ${waliKelasName}`;
+
+    if (recapTab === 'harian') {
+      title = `REKAPITULASI PRESENSI HARIAN SISWA - TANGGAL ${filterDay}`;
+    } else if (recapTab === 'mingguan') {
+      title = `REKAPITULASI PRESENSI MINGGUAN - ACUAN: ${filterDay}`;
+    } else if (recapTab === 'bulanan') {
+      title = `REKAPITULASI PRESENSI BULANAN: ${INDONESIAN_MONTHS[filterMonth].toUpperCase()} ${filterYear}`;
+    } else if (recapTab === 'semester') {
+      title = `REKAPITULASI PRESENSI SEMESTER ${filterSemester.toUpperCase()} - TAHUN ${filterYear}`;
+    }
+
+    doc.text(title, 15, 38);
+    
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(metaLeft, 15, 43);
+    
+    const rightMarginTextWidth = doc.getTextWidth(metaRight);
+    doc.text(metaRight, pageWidth - 15 - rightMarginTextWidth, 43);
+
+    // 3. Columns & Rows Builder
+    let headers: string[][] = [];
+    let body: any[][] = [];
+
+    if (recapTab === 'harian') {
+      headers = [['No', 'NISN', 'Nama Lengkap Siswa', 'L/P', 'Status Kehadiran', 'Keterangan']];
+      body = activeStudents.map((siswa, i) => {
+        const rec = getAttendanceOnDate(siswa.nisn, filterDay);
+        const statusText = rec.status === 'H' ? 'Hadir' : rec.status === 'S' ? 'Sakit' : rec.status === 'I' ? 'Izin' : rec.status === 'A' ? 'Alpha' : 'Belum Presensi';
+        return [
+          i + 1,
+          siswa.nisn,
+          siswa.nama,
+          siswa.jenisKelamin,
+          statusText,
+          rec.ket || '-'
+        ];
+      });
+    } else if (recapTab === 'mingguan') {
+      const daysHeader = weeklyDates.map(dStr => {
+        const d = new Date(dStr);
+        const labels = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+        return `${labels[d.getDay()]} (${d.getDate()}/${d.getMonth() + 1})`;
+      });
+      headers = [['No', 'NISN', 'Nama Lengkap Siswa', 'L/P', ...daysHeader]];
+      body = activeStudents.map((siswa, i) => {
+        const rowData: any[] = [i + 1, siswa.nisn, siswa.nama, siswa.jenisKelamin];
+        weeklyDates.forEach(dStr => {
+          const rec = getAttendanceOnDate(siswa.nisn, dStr);
+          rowData.push(rec.status === '-' ? '-' : rec.status);
+        });
+        return rowData;
+      });
+    } else if (recapTab === 'bulanan') {
+      const daysHeader = monthDates.map(dStr => {
+        const d = new Date(dStr);
+        return `${d.getDate()}`;
+      });
+      headers = [['No', 'NISN', 'Nama Lengkap Siswa', 'L/P', ...daysHeader, 'H', 'S', 'I', 'A', '%']];
+      body = activeStudents.map((siswa, i) => {
+        const agg = getMonthlyAggregateForStudent(siswa.nisn);
+        const rowData: any[] = [i + 1, siswa.nisn, siswa.nama, siswa.jenisKelamin];
+        monthDates.forEach(dStr => {
+          const rec = getAttendanceOnDate(siswa.nisn, dStr);
+          
+          if (rec.status === '-') {
+            const isSun = new Date(dStr).getDay() === 0;
+            const isHol = state.holidays.some(h => h.date === dStr);
+            if (isSun) rowData.push('M');
+            else if (isHol) rowData.push('L');
+            else rowData.push('-');
+          } else {
+            rowData.push(rec.status);
+          }
+        });
+        rowData.push(agg.H, agg.S, agg.I, agg.A, `${agg.rate}%`);
+        return rowData;
+      });
+    } else if (recapTab === 'semester') {
+      headers = [['No', 'NISN', 'Nama Lengkap Siswa', 'L/P', 'Alpha (A)', 'Sakit (S)', 'Izin (I)', 'Hadir (H)', 'Total Presensi', '% Kehadiran']];
+      body = activeStudents.map((siswa, i) => {
+        const agg = getSemesterAggregateForStudent(siswa.nisn);
+        return [
+          i + 1,
+          siswa.nisn,
+          siswa.nama,
+          siswa.jenisKelamin,
+          agg.A,
+          agg.S,
+          agg.I,
+          agg.H,
+          `${agg.total} Hari`,
+          `${agg.rate}%`
+        ];
+      });
+    }
+
+    // 4. Generate AutoTable with Custom Styles
+    autoTable(doc, {
+      startY: 48,
+      head: headers,
+      body: body,
+      theme: 'grid',
+      styles: {
+        fontSize: recapTab === 'bulanan' ? 6 : 8.5,
+        cellPadding: recapTab === 'bulanan' ? 0.8 : 2,
+        valign: 'middle',
+        halign: 'center',
+        font: 'Helvetica'
+      },
+      headStyles: {
+        fillColor: [30, 41, 59],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        lineWidth: 0.1,
+        lineColor: [200, 200, 200]
+      },
+      columnStyles: {
+        0: { halign: 'center', fontStyle: 'bold', cellWidth: 7 },
+        1: { halign: 'center', cellWidth: recapTab === 'bulanan' ? 15 : 22 },
+        2: { halign: 'left', fontStyle: 'bold', cellWidth: recapTab === 'bulanan' ? 32 : 55 },
+        3: { halign: 'center', cellWidth: 7 }
+      },
+      // Decorate Sunday/Holidays cells in red/yellow
+      didDrawCell: (data) => {
+        if (recapTab === 'bulanan' && data.section === 'body' && data.column.index >= 4 && data.column.index < 4 + monthDates.length) {
+          const dayIdx = data.column.index - 4;
+          const dateStr = monthDates[dayIdx];
+          const isSun = new Date(dateStr).getDay() === 0;
+          const isHol = state.holidays.some(h => h.date === dateStr);
+          
+          if (isSun) {
+            doc.setFillColor(254, 226, 226); // Light Rose color for Sunday
+          } else if (isHol) {
+            doc.setFillColor(254, 243, 199); // Light Amber color for Holiday
+          }
+        }
+      }
+    });
+
+    // Signature Area
+    const finalY = (doc as any).lastAutoTable.finalY + 12;
+    if (finalY + 30 < pageHeight) {
+      doc.setFontSize(8.5);
+      doc.setFont('Helvetica', 'normal');
+      doc.text('Mengetahui,', pageWidth - 65, finalY);
+      doc.text('Kepala Sekolah SDN 005 Gelora', pageWidth - 65, finalY + 5);
+      doc.setFont('Helvetica', 'bold');
+      doc.text('MUHAMMAD AL FATIH, S.Pd.', pageWidth - 65, finalY + 24);
+      doc.setFont('Helvetica', 'normal');
+      doc.text('NIP. 197804152005011003', pageWidth - 65, finalY + 28);
+    }
+
+    doc.save(`SDN005_Rekap_${recapTab.toUpperCase()}_Kelas_${selectedClassId}_${Date.now()}.pdf`);
+  };
+
   return (
     <div className="space-y-6" id="recap-view">
-      {/* Tab Selectors */}
-      <div className="bg-white p-2.5 rounded-xl border border-gray-100 shadow-xs flex flex-wrap gap-2 inline-flex" id="recap-tabs-nav">
+      {/* Header with Tabs and PDF Button */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4" id="recap-head-actions">
+        <div className="bg-white p-2.5 rounded-xl border border-gray-100 shadow-xs flex flex-wrap gap-2 inline-flex" id="recap-tabs-nav">
+          <button
+            onClick={() => setRecapTab('harian')}
+            className={`px-4.5 py-2 font-bold text-xs rounded-lg transition-all ${
+              recapTab === 'harian'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+            }`}
+          >
+            Rekapitulasi Harian
+          </button>
+          <button
+            onClick={() => setRecapTab('mingguan')}
+            className={`px-4.5 py-2 font-bold text-xs rounded-lg transition-all ${
+              recapTab === 'mingguan'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+            }`}
+          >
+            Rekapitulasi Mingguan
+          </button>
+          <button
+            onClick={() => setRecapTab('bulanan')}
+            className={`px-4.5 py-2 font-bold text-xs rounded-lg transition-all ${
+              recapTab === 'bulanan'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+            }`}
+          >
+            Rekapitulasi Bulanan
+          </button>
+          <button
+            onClick={() => setRecapTab('semester')}
+            className={`px-4.5 py-2 font-bold text-xs rounded-lg transition-all ${
+              recapTab === 'semester'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+            }`}
+          >
+            Rekapitulasi Semester
+          </button>
+        </div>
         <button
-          onClick={() => setRecapTab('harian')}
-          className={`px-4.5 py-2 font-bold text-xs rounded-lg transition-all ${
-            recapTab === 'harian'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-          }`}
+          onClick={exportToPDF}
+          className="flex items-center gap-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all shadow-md self-start md:self-auto cursor-pointer"
+          id="recap-pdf-download-btn"
         >
-          Rekapitulasi Harian
-        </button>
-        <button
-          onClick={() => setRecapTab('mingguan')}
-          className={`px-4.5 py-2 font-bold text-xs rounded-lg transition-all ${
-            recapTab === 'mingguan'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-          }`}
-        >
-          Rekapitulasi Mingguan
-        </button>
-        <button
-          onClick={() => setRecapTab('bulanan')}
-          className={`px-4.5 py-2 font-bold text-xs rounded-lg transition-all ${
-            recapTab === 'bulanan'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-          }`}
-        >
-          Rekapitulasi Bulanan
-        </button>
-        <button
-          onClick={() => setRecapTab('semester')}
-          className={`px-4.5 py-2 font-bold text-xs rounded-lg transition-all ${
-            recapTab === 'semester'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-          }`}
-        >
-          Rekapitulasi Semester
+          <Printer className="h-4 w-4" />
+          Unduh Format PDF (Rekap {recapTab === 'harian' ? 'Harian' : recapTab === 'mingguan' ? 'Mingguan' : recapTab === 'bulanan' ? 'Bulanan' : 'Semester'})
         </button>
       </div>
 
@@ -388,56 +624,115 @@ export default function RecapView({ state }: RecapViewProps) {
           {/* 3. MONTHLY RECAP TAB */}
           {recapTab === 'bulanan' && (
             <div>
-              <div className="p-4 border-b border-gray-100 bg-gray-50/20 flex items-center justify-between">
-                <span className="bg-blue-600 text-white rounded-md px-3 py-1 font-bold font-mono text-[10.5px]">
-                  REKAP BULANAN: OTO-REKAP BULAN {INDONESIAN_MONTHS[filterMonth].toUpperCase()} {filterYear}
+              <div className="p-4 border-b border-gray-100 bg-gray-50/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                <span className="bg-blue-600 text-white rounded-lg px-3 py-1.5 font-bold font-mono text-[10.5px] shadow-xs">
+                  REKAP BULANAN: JURNAL ABSENSI {INDONESIAN_MONTHS[filterMonth].toUpperCase()} {filterYear}
                 </span>
-                <span className="text-[10.5px] text-gray-400 font-semibold">
-                  Mencakup akumulasi Presensi Tanggal 1 s.d {new Date(filterYear, filterMonth + 1, 0).getDate()}
+                <span className="text-[10.5px] text-gray-500 font-medium font-sans">
+                  Mencakup Jurnal Tanggal 1 s.d {new Date(filterYear, filterMonth + 1, 0).getDate()} | Hari minggu berwarna merah (M), hari libur berwarna kuning (L).
                 </span>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
+              <div className="overflow-x-auto" id="monthly-recap-table-container">
+                <table className="w-full text-left border-collapse text-xs border border-gray-150">
                   <thead>
-                    <tr className="bg-blue-50/40 text-blue-900 border-b border-gray-100 font-bold">
-                      <th className="p-4 w-12 text-center">No</th>
-                      <th className="p-4 w-32">NISN</th>
-                      <th className="p-4">Nama Lengkap Siswa</th>
-                      <th className="p-4 w-16 text-center">L/P</th>
-                      <th className="p-4 text-center w-24">Hadir (H)</th>
-                      <th className="p-4 text-center w-24">Sakit (S)</th>
-                      <th className="p-4 text-center w-24">Izin (I)</th>
-                      <th className="p-4 text-center w-24">Alpha (A)</th>
-                      <th className="p-4 text-center w-28">Presensi Total</th>
-                      <th className="p-4 text-center w-36">Tingkat Kehadiran</th>
+                    <tr className="bg-blue-50/40 text-blue-900 border-b border-gray-200 font-bold">
+                      <th className="p-2 border border-gray-150 w-10 text-center">No</th>
+                      <th className="p-2 border border-gray-150 w-24">NISN</th>
+                      <th className="p-2 border border-gray-150 min-w-[140px]">Nama Lengkap Siswa</th>
+                      <th className="p-2 border border-gray-150 w-10 text-center">L/P</th>
+                      
+                      {/* Generates dates columns 1..30/31 */}
+                      {monthDates.map(dateStr => {
+                        const d = new Date(dateStr);
+                        const isSun = d.getDay() === 0;
+                        const isHol = state.holidays.some(h => h.date === dateStr);
+                        const holName = getHolidayName(dateStr);
+                        return (
+                          <th 
+                            key={dateStr}
+                            title={holName || `Tanggal ${d.getDate()}`}
+                            className={`p-1 border border-gray-150 text-center w-7 min-w-[28px] text-[10px] ${
+                              isSun 
+                                ? 'bg-red-100 text-red-700' 
+                                : isHol 
+                                ? 'bg-amber-100 text-amber-800' 
+                                : 'bg-gray-100/70 text-gray-700'
+                            }`}
+                          >
+                            {d.getDate()}
+                          </th>
+                        );
+                      })}
+                      
+                      <th className="p-2 border border-gray-150 text-center w-10 bg-emerald-100 text-emerald-800 font-extrabold">H</th>
+                      <th className="p-2 border border-gray-150 text-center w-10 bg-blue-100 text-blue-800 font-extrabold">S</th>
+                      <th className="p-2 border border-gray-150 text-center w-10 bg-amber-100 text-amber-800 font-extrabold">I</th>
+                      <th className="p-2 border border-gray-150 text-center w-10 bg-rose-100 text-rose-800 font-extrabold">A</th>
+                      <th className="p-2 border border-gray-150 text-center w-16 bg-gray-100 text-gray-800 font-bold">Total</th>
+                      <th className="p-2 border border-gray-150 text-center w-16 bg-blue-600 text-white font-bold">%</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 text-gray-600">
+                  <tbody className="divide-y divide-gray-100 text-gray-700">
                     {activeStudents.map((siswa, i) => {
                       const agg = getMonthlyAggregateForStudent(siswa.nisn);
                       return (
-                        <tr key={siswa.nisn} className="hover:bg-gray-50/30">
-                          <td className="p-4 text-center font-bold text-gray-400">{i + 1}</td>
-                          <td className="p-4 font-mono font-bold text-gray-900">{siswa.nisn}</td>
-                          <td className="p-4 font-bold text-gray-800">{siswa.nama}</td>
-                          <td className="p-4 text-center font-medium">{siswa.jenisKelamin}</td>
+                        <tr key={siswa.nisn} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="p-2 border border-gray-150 text-center font-bold text-gray-400">{i + 1}</td>
+                          <td className="p-2 border border-gray-150 font-mono font-bold text-gray-950">{siswa.nisn}</td>
+                          <td className="p-2 border border-gray-150 font-bold text-gray-900 truncate max-w-[200px]" title={siswa.nama}>{siswa.nama}</td>
+                          <td className="p-2 border border-gray-150 text-center font-semibold text-gray-500">{siswa.jenisKelamin}</td>
                           
-                          {/* Aggregations list */}
-                          <td className="p-4 text-center text-emerald-600 font-extrabold">{agg.H}</td>
-                          <td className="p-4 text-center text-blue-600 font-extrabold">{agg.S}</td>
-                          <td className="p-4 text-center text-amber-600 font-extrabold">{agg.I}</td>
-                          <td className="p-4 text-center text-red-600 font-extrabold">{agg.A}</td>
+                          {/* Calendar days statuses */}
+                          {monthDates.map(dateStr => {
+                            const rec = getAttendanceOnDate(siswa.nisn, dateStr);
+                            const isSun = new Date(dateStr).getDay() === 0;
+                            const isHol = state.holidays.some(h => h.date === dateStr);
+                            
+                            let bgClass = '';
+                            if (isSun) bgClass = 'bg-red-50/40 text-red-505 font-medium';
+                            else if (isHol) bgClass = 'bg-amber-50/40 text-amber-705 font-medium';
+
+                            return (
+                              <td 
+                                key={dateStr}
+                                title={getHolidayName(dateStr) || `${siswa.nama} - Tanggal ${new Date(dateStr).getDate()}`}
+                                className={`p-1 border border-gray-150 text-center font-black text-[10px] w-7 min-w-[28px] ${bgClass}`}
+                              >
+                                {rec.status === '-' ? (
+                                  isSun ? 'M' : isHol ? 'L' : '-'
+                                ) : (
+                                  <span className={`inline-block w-5.5 h-5.5 leading-5.5 text-center rounded-md font-black text-[9.5px] ${
+                                    rec.status === 'H' 
+                                      ? 'bg-emerald-500 text-white shadow-xs' 
+                                      : rec.status === 'S' 
+                                      ? 'bg-blue-500 text-white shadow-xs' 
+                                      : rec.status === 'I' 
+                                      ? 'bg-amber-500 text-white shadow-xs' 
+                                      : 'bg-rose-500 text-white shadow-xs'
+                                  }`}>
+                                    {rec.status}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
                           
-                          <td className="p-4 text-center font-mono font-bold text-gray-900 bg-gray-50/30">
-                            {agg.total} Hari
+                          {/* Aggregates */}
+                          <td className="p-2 border border-gray-150 text-center text-emerald-600 font-extrabold bg-emerald-50/20">{agg.H}</td>
+                          <td className="p-2 border border-gray-150 text-center text-blue-600 font-extrabold bg-blue-50/20">{agg.S}</td>
+                          <td className="p-2 border border-gray-150 text-center text-amber-600 font-extrabold bg-amber-50/20">{agg.I}</td>
+                          <td className="p-2 border border-gray-150 text-center text-rose-600 font-extrabold bg-rose-50/20">{agg.A}</td>
+                          
+                          <td className="p-2 border border-gray-150 text-center font-mono font-bold text-gray-900 bg-gray-50/50">
+                            {agg.total} H
                           </td>
-                          <td className="p-4 text-center">
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-black ${
+                          <td className="p-2 border border-gray-150 text-center bg-blue-50/30">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
                               agg.rate >= 90 
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                                ? 'bg-emerald-600 text-white' 
                                 : agg.rate >= 75 
-                                ? 'bg-blue-50 text-blue-700 border border-blue-100' 
-                                : 'bg-red-50 text-red-700 border border-red-100'
+                                ? 'bg-blue-600 text-white' 
+                                : 'bg-red-650 text-white'
                             }`}>
                               {agg.rate}%
                             </span>
