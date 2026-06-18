@@ -1,0 +1,8 @@
+{
+  "name": "Absensi SDN 005 Gelora",
+  "description": "Aplikasi absensi siswa SDN 005 Gelora dengan rekapitulasi, manajemen guru, kelas, kalender akademik, serta impor dan ekspor Excel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
