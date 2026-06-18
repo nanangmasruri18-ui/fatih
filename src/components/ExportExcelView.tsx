@@ -68,7 +68,7 @@ export default function ExportExcelView({ state }: ExportExcelViewProps) {
                 onChange={e => setSelectedClass(e.target.value)}
                 className="w-full bg-white border border-gray-200 rounded-lg p-2.5 outline-none focus:border-blue-500 text-sm font-bold text-gray-700"
               >
-                <option value="Semua">Semua Kelas Terdaftar (1-6)</option>
+                <option value="Semua">Semua Rombel Terdaftar</option>
                 {state.classes.map(c => (
                   <option key={c.id} value={c.id}>
                     {c.nama} (Wali: {state.teachers.find(t => t.nip === c.waliKelasNip)?.nama || 'Belum diatur'})

@@ -149,7 +149,7 @@ export default function ImportExcelView({ state, onChange, setView }: ImportExce
             <h3 className="font-bold text-gray-800 text-sm">Petunjuk Impor Data</h3>
             <ol className="text-xs text-gray-500 list-decimal list-inside space-y-2 leading-relaxed">
               <li>Silakan unduh atau pakai <strong>Template Excel Resmi</strong> yang telah disediakan di kanan atas.</li>
-              <li>Isi baris data anak didik Anda (kolom NISN wajib unik, jenis kelamin isi <code className="bg-gray-100 px-1 py-0.5 rounded font-bold font-mono">L</code> / <code className="bg-gray-100 px-1 py-0.5 rounded font-bold font-mono">P</code>, kelas diisi angka <code className="bg-gray-100 px-1 py-0.5 rounded font-bold font-mono">1</code>-<code className="bg-gray-100 px-1 py-0.5 rounded font-bold font-mono">6</code>).</li>
+              <li>Isi baris data anak didik Anda (kolom NISN wajib unik, jenis kelamin isi <code className="bg-gray-100 px-1 py-0.5 rounded font-bold font-mono">L</code> / <code className="bg-gray-100 px-1 py-0.5 rounded font-bold font-mono">P</code>, kelas diisi kode kelas paralel seperti <code className="bg-gray-100 px-1 py-0.5 rounded font-bold font-mono">1A</code>, <code className="bg-gray-100 px-1 py-0.5 rounded font-bold font-mono">1B</code>, <code className="bg-gray-100 px-1 py-0.5 rounded font-bold font-mono">2A</code>, dst).</li>
               <li>Seret & Jatuhkan file Excel (.xlsx) tersebut pada kotak penarik di bawah ini.</li>
               <li>Periksa ringkasan baris siswa hasil bacaan, lalu ketuk tombol <strong>Simpan Impor Data</strong>.</li>
             </ol>

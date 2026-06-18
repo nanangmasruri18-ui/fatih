@@ -10,21 +10,21 @@ export function downloadStudentTemplate() {
       NISN: '0123456789',
       'Nama Siswa': 'Andi Pratama',
       'Jenis Kelamin (L/P)': 'L',
-      'Kelas (1-6)': '1',
+      'Kode Kelas Rombel (Misal: 1A, 1B, 1C, 2A, dst)': '1A',
       'Status (Aktif/Tidak Aktif)': 'Aktif',
     },
     {
       NISN: '0123456790',
       'Nama Siswa': 'Siti Rahma',
       'Jenis Kelamin (L/P)': 'P',
-      'Kelas (1-6)': '1',
+      'Kode Kelas Rombel (Misal: 1A, 1B, 1C, 2A, dst)': '1A',
       'Status (Aktif/Tidak Aktif)': 'Aktif',
     },
     {
       NISN: '0123456791',
       'Nama Siswa': 'Budi Santoso',
       'Jenis Kelamin (L/P)': 'L',
-      'Kelas (1-6)': '2',
+      'Kode Kelas Rombel (Misal: 1A, 1B, 1C, 2A, dst)': '2A',
       'Status (Aktif/Tidak Aktif)': 'Aktif',
     }
   ];
@@ -38,7 +38,7 @@ export function downloadStudentTemplate() {
     { wch: 15 }, // NISN
     { wch: 25 }, // Nama Siswa
     { wch: 20 }, // Jenis Kelamin
-    { wch: 15 }, // Kelas
+    { wch: 45 }, // Kode Kelas Rombel
     { wch: 25 }, // Status
   ];
 
@@ -62,10 +62,30 @@ export function parseStudentExcel(fileBuffer: ArrayBuffer): Student[] {
     let jkRaw = String(row['Jenis Kelamin (L/P)'] || row['Jenis Kelamin'] || row['jk'] || 'L').trim().toUpperCase();
     const jenisKelamin: 'L' | 'P' = jkRaw.startsWith('P') ? 'P' : 'L';
 
-    let kelasId = String(row['Kelas (1-6)'] || row['Kelas'] || row['kelas'] || '1').trim();
-    // sanitize class to "1" to "6"
-    if (!['1', '2', '3', '4', '5', '6'].includes(kelasId)) {
-      kelasId = '1';
+    let kelasId = String(
+      row['Kode Kelas Rombel (Misal: 1A, 1B, 1C, 2A, dst)'] ||
+      row['Kelas (1-6)'] ||
+      row['Kelas'] ||
+      row['kelas'] ||
+      '1A'
+    ).trim().toUpperCase();
+
+    // Map legacy or single digit numeric strings to standard parallel codes
+    if (kelasId === '1') kelasId = '1A';
+    else if (kelasId === '2') kelasId = '2A';
+    else if (kelasId === '3') kelasId = '3A';
+    else if (kelasId === '4') kelasId = '4A';
+    else if (kelasId === '5') kelasId = '5A';
+    else if (kelasId === '6') kelasId = '6A';
+
+    const validClassIds = ['1A', '1B', '1C', '2A', '2B', '2C', '3A', '3B', '4A', '4B', '5A', '5B', '6A', '6B'];
+    if (!validClassIds.includes(kelasId)) {
+      const matched = validClassIds.find(cls => kelasId.includes(cls));
+      if (matched) {
+        kelasId = matched;
+      } else {
+        kelasId = '1A';
+      }
     }
 
     const statusRaw = String(row['Status (Aktif/Tidak Aktif)'] || row['Status'] || row['status'] || 'Aktif').trim().toLowerCase();

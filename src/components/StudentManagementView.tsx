@@ -19,7 +19,7 @@ export default function StudentManagementView({ state, onChange }: StudentManage
   const [nisn, setNisn] = useState('');
   const [nama, setNama] = useState('');
   const [jenisKelamin, setJenisKelamin] = useState<'L' | 'P'>('L');
-  const [kelasId, setKelasId] = useState('1');
+  const [kelasId, setKelasId] = useState(state.classes[0]?.id || '1A');
   const [statusAktif, setStatusAktif] = useState(true);
 
   const [formError, setFormError] = useState('');
@@ -38,7 +38,7 @@ export default function StudentManagementView({ state, onChange }: StudentManage
     setNisn('');
     setNama('');
     setJenisKelamin('L');
-    setKelasId('1');
+    setKelasId(state.classes[0]?.id || '1A');
     setStatusAktif(true);
     setFormError('');
   };
@@ -278,7 +278,7 @@ export default function StudentManagementView({ state, onChange }: StudentManage
               onChange={e => setClassFilter(e.target.value)}
               className="w-full text-xs bg-white border border-gray-200 rounded-lg p-2.5 outline-none text-gray-600 font-medium"
             >
-              <option value="Semua">Semua Kelas (1-6)</option>
+              <option value="Semua">Semua Kelas & Rombel</option>
               {state.classes.map(c => (
                 <option key={c.id} value={c.id}>
                   {c.nama}
