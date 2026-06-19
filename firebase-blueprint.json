@@ -1,0 +1,54 @@
+{
+  "collections": {
+    "teachers": {
+      "description": "Daftar guru dan administrator",
+      "fields": {
+        "nip": { "type": "string", "description": "NIP/NUPTK" },
+        "nama": { "type": "string", "description": "Nama Lengkap" },
+        "jenisKelamin": { "type": "string", "description": "Jenis Kelamin (L/P)" },
+        "noHp": { "type": "string", "description": "Nomor Handphone" },
+        "role": { "type": "string", "description": "Peran (admin/guru)" },
+        "password": { "type": "string", "description": "Password lokal hashed/plain" }
+      }
+    },
+    "classes": {
+      "description": "Daftar kelas/rombel rombongan belajar",
+      "fields": {
+        "id": { "type": "string", "description": "ID Kelas" },
+        "nama": { "type": "string", "description": "Nama Kelas" },
+        "waliKelasNip": { "type": "string", "description": "NIP Wali Kelas" }
+      }
+    },
+    "students": {
+      "description": "Daftar siswa SDN 005 Gelora",
+      "fields": {
+        "nisn": { "type": "string", "description": "NISN siswa" },
+        "nama": { "type": "string", "description": "Nama Lengkap" },
+        "jenisKelamin": { "type": "string", "description": "Jenis Kelamin" },
+        "kelasId": { "type": "string", "description": "ID Kelas" },
+        "statusAktif": { "type": "boolean", "description": "Status keaktifan siswa" }
+      }
+    },
+    "holidays": {
+      "description": "Daftar hari libur sekolah",
+      "fields": {
+        "date": { "type": "string", "description": "Format YYYY-MM-DD" },
+        "nama": { "type": "string", "description": "Nama Hari Libur" },
+        "tipe": { "type": "string", "description": "Tipe Libur (nasional/cuti/sekolah)" }
+      }
+    },
+    "attendance": {
+      "description": "Daftar presensi harian siswa",
+      "fields": {
+        "id": { "type": "string", "description": "Format YYYY_MM_DD_NISN" },
+        "date": { "type": "string", "description": "Format YYYY-MM-DD" },
+        "nisn": { "type": "string", "description": "NISN siswa" },
+        "kelasId": { "type": "string", "description": "ID Kelas" },
+        "status": { "type": "string", "description": "Status (H/S/I/A)" },
+        "keterangan": { "type": "string", "description": "Keterangan tambahan" },
+        "createdAt": { "type": "string", "description": "Tanggal pembuatan" },
+        "updatedAt": { "type": "string", "description": "Tanggal pembaruan terakhir" }
+      }
+    }
+  }
+}

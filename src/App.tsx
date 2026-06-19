@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppState, Teacher } from './types';
 import { getInitialState, saveState } from './data';
+import { seedDatabaseIfEmpty, syncStateDifferenceToFirestore, setupRealtimeListeners } from './firebase';
 
 // Import Icons
 import { 
@@ -44,10 +45,32 @@ export default function App() {
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  // Sync state changes with localStorage
+  // Auto-seed to Firestore if empty, and subscribe to real-time events across other browsers
+  useEffect(() => {
+    // 1. Seed database with defaults if empty
+    seedDatabaseIfEmpty();
+
+    // 2. Setup real-time listener subscription (unsubscribes on unmount)
+    const unsubscribe = setupRealtimeListeners((updates) => {
+      setAppState(prev => ({
+        ...prev,
+        ...updates
+      }));
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // Sync state changes with localStorage and backup to Firestore instantly
   const handleStateChange = (newState: AppState) => {
+    // 1. Instantly trigger local state update
     setAppState(newState);
+    // 2. Persist to local storage so user has immediate backings
     saveState(newState);
+    // 3. Compute differences and synchronize incrementally to Firestore
+    syncStateDifferenceToFirestore(appState, newState);
   };
 
   const handleLogin = (user: Teacher) => {
