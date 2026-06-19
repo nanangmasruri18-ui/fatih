@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppState, Teacher } from '../types';
-import { Save, User, Key, Check, ShieldAlert } from 'lucide-react';
+import { Save, User, Key, Check, ShieldAlert, Database, RefreshCw, Globe, Wifi } from 'lucide-react';
 
 interface AccountSettingsViewProps {
   state: AppState;
@@ -18,6 +18,21 @@ export default function AccountSettingsView({ state, onChange }: AccountSettings
 
   const [formSuccess, setFormSuccess] = useState('');
   const [formError, setFormError] = useState('');
+
+  const [dbType, setDbType] = useState(
+    typeof window !== 'undefined' ? localStorage.getItem('FIRESTORE_DB_TYPE') || 'system' : 'system'
+  );
+  const [dbSwitching, setDbSwitching] = useState(false);
+
+  const handleSwitchDb = (type: 'system' | 'custom') => {
+    if (type === dbType) return;
+    setDbSwitching(true);
+    localStorage.setItem('FIRESTORE_DB_TYPE', type);
+    setDbType(type);
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
+  };
 
   if (!current) {
     return (
@@ -245,6 +260,92 @@ export default function AccountSettingsView({ state, onChange }: AccountSettings
             </button>
           </form>
         </div>
+      </div>
+
+      {/* Koneksi Database & Kolaborasi Real-time */}
+      <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-xs space-y-4" id="db-settings-panel">
+        <h3 className="font-bold text-gray-800 text-sm flex items-center gap-1.5 border-b border-gray-50 pb-2.5">
+          <Database className="w-4 h-4 text-blue-600" />
+          Koneksi Database & Sinkronisasi Multi-Browser
+        </h3>
+        
+        <p className="text-xs text-gray-500 leading-relaxed">
+          Aplikasi presensi SDN 005 Gelora kini mendukung sinkronisasi database awan secara langsung (real-time). 
+          Apabila Anda membuka aplikasi ini di HP, laptop, atau browser lain secara bersamaan, setiap perubahan data (tambah siswa, presensi harian, libur, dll) akan langsung saling terupdate secara instan.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+          {/* Opsi 1: Database Default AI Studio */}
+          <div 
+            onClick={() => handleSwitchDb('system')}
+            className={`cursor-pointer p-4 rounded-xl border transition-all ${
+              dbType === 'system' 
+                ? 'border-blue-500 bg-blue-50/50 shadow-xs' 
+                : 'border-gray-200 hover:border-gray-300 bg-white'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div className={`p-2 rounded-lg ${dbType === 'system' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                <Globe className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                  Database Utama (AI Studio)
+                  {dbType === 'system' && (
+                    <span className="bg-blue-600 text-white text-[9px] px-2 py-0.5 rounded-full font-black uppercase">
+                      Aktif
+                    </span>
+                  )}
+                </span>
+                <p className="text-[11px] text-gray-500 leading-normal">
+                  Direkomendasikan. Sudah siap pakai secara instan ke database awan SDN 005 Gelora yang paling aman tanpa konfigurasi manual.
+                </p>
+                <div className="text-[10px] text-gray-400 font-mono pt-1">
+                  ID: gen-lang-client-0850578
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Opsi 2: Database Kustom */}
+          <div 
+            onClick={() => handleSwitchDb('custom')}
+            className={`cursor-pointer p-4 rounded-xl border transition-all ${
+              dbType === 'custom' 
+                ? 'border-purple-500 bg-purple-50/50 shadow-xs' 
+                : 'border-gray-200 hover:border-gray-300 bg-white'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div className={`p-2 rounded-lg ${dbType === 'custom' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                <Wifi className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                  Database Kustom Anda
+                  {dbType === 'custom' && (
+                    <span className="bg-purple-600 text-white text-[9px] px-2 py-0.5 rounded-full font-black uppercase">
+                      Aktif
+                    </span>
+                  )}
+                </span>
+                <p className="text-[11px] text-gray-500 leading-normal">
+                  Gunakan database Firebase pribadi Anda (Project ID: <b>fatih-8515b</b>).
+                </p>
+                <p className="text-[10px] text-amber-600 font-medium leading-normal bg-amber-50 p-1.5 rounded border border-amber-100 mt-1">
+                  ⚠️ Aturan Keamanan: Harap atur <i>Cloud Firestore Rules</i> Anda menjadi <b>allow read, write: if true;</b> di Firebase Console agar terbebas dari kendala "Missing or insufficient permissions".
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {dbSwitching && (
+          <div className="bg-amber-50 text-amber-850 text-[11px] p-3 rounded-lg border border-amber-200 flex items-center gap-2 font-semibold animate-pulse">
+            <RefreshCw className="h-4 w-4 animate-spin shrink-0 text-amber-600" />
+            Sedang mengalihkan koneksi database dan menyinkronkan data presensi... mohon tunggu.
+          </div>
+        )}
       </div>
     </div>
   );

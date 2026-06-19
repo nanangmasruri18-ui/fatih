@@ -14,21 +14,71 @@ import { customFirebaseConfig } from './firebaseConfig';
 import { Teacher, ClassRoom, Student, Holiday, Attendance, AppState } from './types';
 import { DEFAULT_TEACHERS, DEFAULT_CLASSES, DEFAULT_STUDENTS, DEFAULT_HOLIDAYS, DEFAULT_ATTENDANCES } from './data';
 
-// Menentukan konfigurasi aktif: Utamakan custom config buatan pengguna
-const activeConfig = customFirebaseConfig && customFirebaseConfig.projectId
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: null,
+      email: null,
+      emailVerified: null,
+      isAnonymous: null,
+      tenantId: null,
+      providerInfo: []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+// Ambil pilihan preferensi database dari localStorage (default ke 'system' jika belum ditentukan)
+const dbType = typeof window !== 'undefined' ? (localStorage.getItem('FIRESTORE_DB_TYPE') || 'system') : 'system';
+
+// Konfigurasi aktif berdasarkan preferensi pengguna
+const activeConfig = dbType === 'custom' && customFirebaseConfig && customFirebaseConfig.projectId
   ? customFirebaseConfig
   : firebaseConfig;
 
 // Initialize Firebase App
 const app = initializeApp(activeConfig);
-export const db = getFirestore(app);
+export const db = (activeConfig as any).firestoreDatabaseId
+  ? getFirestore(app, (activeConfig as any).firestoreDatabaseId)
+  : getFirestore(app);
 
 /**
  * Seeds the database with default data if empty
  */
 export async function seedDatabaseIfEmpty() {
+  const path = 'teachers';
   try {
-    const teachersSnap = await getDocs(collection(db, 'teachers'));
+    const teachersSnap = await getDocs(collection(db, path));
     if (teachersSnap.empty) {
       console.log('Firebase Firestore is empty. Seeding defaults for SDN 005 Gelora...');
       const batch = writeBatch(db);
@@ -72,6 +122,7 @@ export async function seedDatabaseIfEmpty() {
     }
   } catch (error) {
     console.error('Error during Firestore database seeding:', error);
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
@@ -79,12 +130,14 @@ export async function seedDatabaseIfEmpty() {
  * Incremental synchronization from State differences to Firestore
  */
 export async function syncStateDifferenceToFirestore(oldState: AppState, newState: AppState) {
+  let currentPath = '';
   try {
     const batch = writeBatch(db);
     let operationsCount = 0;
 
     // 1. Synchronize Teachers
     if (oldState.teachers !== newState.teachers) {
+      currentPath = 'teachers';
       // Added or modified
       newState.teachers.forEach(t => {
         const oldT = oldState.teachers.find(x => x.nip === t.nip);
@@ -106,6 +159,7 @@ export async function syncStateDifferenceToFirestore(oldState: AppState, newStat
 
     // 2. Synchronize Classes
     if (oldState.classes !== newState.classes) {
+      currentPath = 'classes';
       newState.classes.forEach(c => {
         const oldC = oldState.classes.find(x => x.id === c.id);
         if (!oldC || JSON.stringify(oldC) !== JSON.stringify(c)) {
@@ -125,6 +179,7 @@ export async function syncStateDifferenceToFirestore(oldState: AppState, newStat
 
     // 3. Synchronize Students
     if (oldState.students !== newState.students) {
+      currentPath = 'students';
       newState.students.forEach(s => {
         const oldS = oldState.students.find(x => x.nisn === s.nisn);
         if (!oldS || JSON.stringify(oldS) !== JSON.stringify(s)) {
@@ -144,6 +199,7 @@ export async function syncStateDifferenceToFirestore(oldState: AppState, newStat
 
     // 4. Synchronize Holidays
     if (oldState.holidays !== newState.holidays) {
+      currentPath = 'holidays';
       newState.holidays.forEach(h => {
         const oldH = oldState.holidays.find(x => x.date === h.date);
         if (!oldH || JSON.stringify(oldH) !== JSON.stringify(h)) {
@@ -165,6 +221,7 @@ export async function syncStateDifferenceToFirestore(oldState: AppState, newStat
 
     // 5. Synchronize Attendance
     if (oldState.attendance !== newState.attendance) {
+      currentPath = 'attendance';
       newState.attendance.forEach(a => {
         const oldA = oldState.attendance.find(x => x.date === a.date && x.nisn === a.nisn);
         if (!oldA || JSON.stringify(oldA) !== JSON.stringify(a)) {
@@ -190,6 +247,7 @@ export async function syncStateDifferenceToFirestore(oldState: AppState, newStat
     }
   } catch (error) {
     console.error('Error synchronizing local updates to Firestore:', error);
+    handleFirestoreError(error, OperationType.WRITE, currentPath || 'sync');
   }
 }
 
@@ -210,6 +268,7 @@ export function setupRealtimeListeners(onUpdate: (updates: Partial<AppState>) =>
     onUpdate({ teachers: list });
   }, err => {
     console.error('Error listening to teachers updates:', err);
+    handleFirestoreError(err, OperationType.GET, 'teachers');
   });
   unsubscribers.push(unsubTeachers);
 
@@ -223,6 +282,7 @@ export function setupRealtimeListeners(onUpdate: (updates: Partial<AppState>) =>
     onUpdate({ classes: list });
   }, err => {
     console.error('Error listening to classes updates:', err);
+    handleFirestoreError(err, OperationType.GET, 'classes');
   });
   unsubscribers.push(unsubClasses);
 
@@ -236,6 +296,7 @@ export function setupRealtimeListeners(onUpdate: (updates: Partial<AppState>) =>
     onUpdate({ students: list });
   }, err => {
     console.error('Error listening to students updates:', err);
+    handleFirestoreError(err, OperationType.GET, 'students');
   });
   unsubscribers.push(unsubStudents);
 
@@ -249,6 +310,7 @@ export function setupRealtimeListeners(onUpdate: (updates: Partial<AppState>) =>
     onUpdate({ holidays: list });
   }, err => {
     console.error('Error listening to holidays updates:', err);
+    handleFirestoreError(err, OperationType.GET, 'holidays');
   });
   unsubscribers.push(unsubHolidays);
 
@@ -261,6 +323,7 @@ export function setupRealtimeListeners(onUpdate: (updates: Partial<AppState>) =>
     onUpdate({ attendance: list });
   }, err => {
     console.error('Error listening to attendance updates:', err);
+    handleFirestoreError(err, OperationType.GET, 'attendance');
   });
   unsubscribers.push(unsubAttendance);
 
