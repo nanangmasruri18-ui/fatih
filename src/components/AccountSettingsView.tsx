@@ -20,7 +20,7 @@ export default function AccountSettingsView({ state, onChange }: AccountSettings
   const [formError, setFormError] = useState('');
 
   const [dbType, setDbType] = useState(
-    typeof window !== 'undefined' ? localStorage.getItem('FIRESTORE_DB_TYPE') || 'system' : 'system'
+    typeof window !== 'undefined' ? localStorage.getItem('FIRESTORE_DB_TYPE') || 'custom' : 'custom'
   );
   const [dbSwitching, setDbSwitching] = useState(false);
 

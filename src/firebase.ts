@@ -58,13 +58,13 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Ambil pilihan preferensi database dari localStorage (default ke 'system' jika belum ditentukan)
-const dbType = typeof window !== 'undefined' ? (localStorage.getItem('FIRESTORE_DB_TYPE') || 'system') : 'system';
+// Ambil pilihan preferensi database dari localStorage (default ke 'custom' jika belum ditentukan)
+const dbType = typeof window !== 'undefined' ? (localStorage.getItem('FIRESTORE_DB_TYPE') || 'custom') : 'custom';
 
 // Konfigurasi aktif berdasarkan preferensi pengguna
-const activeConfig = dbType === 'custom' && customFirebaseConfig && customFirebaseConfig.projectId
-  ? customFirebaseConfig
-  : firebaseConfig;
+const activeConfig = dbType === 'system'
+  ? firebaseConfig
+  : (customFirebaseConfig && customFirebaseConfig.projectId ? customFirebaseConfig : firebaseConfig);
 
 // Initialize Firebase App
 const app = initializeApp(activeConfig);
