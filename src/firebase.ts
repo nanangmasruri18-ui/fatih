@@ -10,11 +10,17 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
+import { customFirebaseConfig } from './firebaseConfig';
 import { Teacher, ClassRoom, Student, Holiday, Attendance, AppState } from './types';
 import { DEFAULT_TEACHERS, DEFAULT_CLASSES, DEFAULT_STUDENTS, DEFAULT_HOLIDAYS, DEFAULT_ATTENDANCES } from './data';
 
+// Menentukan konfigurasi aktif: Utamakan custom config buatan pengguna
+const activeConfig = customFirebaseConfig && customFirebaseConfig.projectId
+  ? customFirebaseConfig
+  : firebaseConfig;
+
 // Initialize Firebase App
-const app = initializeApp(firebaseConfig);
+const app = initializeApp(activeConfig);
 export const db = getFirestore(app);
 
 /**
